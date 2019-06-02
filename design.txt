@@ -1,0 +1,60 @@
+Infinite download, limited upload (server)
+
+serwer ./dir --upload=800kb // +++
+serwer file.txt --upload=800kb
+serwer:
+    file.txt -- compress and calculate sha
+    workspace/
+        file.txt/
+            chunk1.gzip 4Mb
+            chunk1.sha1
+            chunk2.gzip
+            chunk2.sha1 1Mb
+        file.txt.sha1
+
+server_get_files [0:255]
+
+client --repo=repo.txt ls // pokazuje dostępne pliki w repozytoriach
+client --repo=repo.txt pull file.txt // default
+client --repo=repo.txt --fast pull file.txt // fast
+client --repo=repo.txt push file.txt // ++++    
+retries // +++
+
+serwer:
+1. load_settings
+2. calculate, compress, divide on chunks, sha of chunk
+
+. clean -- if flag specified
+
+
+
+client:
+workspace/
+    file.txt.sha1
+    chunk1.gzip
+    chunk2.gzip
+
+
+client:
+1. getMetadata(file sha,chunks_number)
+2. Download chunks and validate them
+3. Merge
+4. Uncompress
+5. Calculate sha1
+
+gzip6
+
+
+zlib1g
+
+zlib1g-dev on debian
+https://github.com/ttroy50/cmake-examples/tree/master/02-sub-projects/A-basic
+
+
+client: connected
+server: 20-bytes sha1, 256 bytes of filename, nr of chunks -> wait
+client: give chunk nr 5 -> wait
+server: 4096 * 1024 -> wait
+client: give chunk nr 5 -> wait
+server: 4096 * 1024 -> wait
+client: disconnect/timeout
