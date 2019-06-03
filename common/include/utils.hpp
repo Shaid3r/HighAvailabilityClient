@@ -1,3 +1,5 @@
+#pragma once
+
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -21,11 +23,11 @@ off_t getFileSize(const std::string& filepath) {
     return buffer.st_size;
 }
 
-unsigned int getNumberOfChunks(off_t dataSize) {
-    if (dataSize % CHUNK_SIZE == 0) {
-        return dataSize / CHUNK_SIZE;
+unsigned int getNumberOfChunks(off_t dataSize, int chunkSize) {
+    if (dataSize % chunkSize == 0) {
+        return dataSize / chunkSize;
     } else {
-        return dataSize / CHUNK_SIZE + 1;
+        return dataSize / chunkSize + 1;
     }
 }
 
@@ -49,7 +51,7 @@ std::string ip_to_str(const struct sockaddr *sa) {
     return ss.str();
 }
 
-int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+int unlink_cb(const char *fpath, const struct stat *, int, struct FTW *) {
     int rv = remove(fpath);
 
     if (rv)

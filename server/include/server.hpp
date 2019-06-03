@@ -90,7 +90,8 @@ private:
 
         
         Proto proto("dd.tar", dataSize);
-        write(clientSock, proto.raw_msg(), proto.size());
+        int wv = write(clientSock, proto.raw_msg(), proto.size());
+        std::cout << "Send metadata: " << wv << " bytes" << std::endl;
         
         u_int64_t requestedChunk = -1;
         read(clientSock, &requestedChunk, sizeof(requestedChunk));
@@ -139,7 +140,7 @@ private:
             }
         }
         dataSize = getFileSize(data_path);
-        chunks = getNumberOfChunks(dataSize);
+        chunks = getNumberOfChunks(dataSize, CHUNK_SIZE);
         std::cout << "Compressed data has " << dataSize << " bytes (" << chunks << " chunks)" << std::endl;
         datafd = open(data_path.c_str(), O_RDONLY, 0);
     }

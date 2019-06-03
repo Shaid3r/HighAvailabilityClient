@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 #include <string>
 #include <stdexcept>
@@ -78,9 +79,9 @@ public:
     u_int64_t filesize;
 
     
-    static const int MAX_FILENAME_SIZE{256};
-    static const int NUMBER_OF_CHUNKS{sizeof(u_int64_t)};
-    static const int MSG_SIZE{MAX_FILENAME_SIZE + NUMBER_OF_CHUNKS};
+    static const size_t MAX_FILENAME_SIZE{256};
+    static const size_t FILESIZE{sizeof(u_int64_t)};
+    static const size_t MSG_SIZE{MAX_FILENAME_SIZE + FILESIZE};
 private:
     char msg[MSG_SIZE];
 };

@@ -11,6 +11,7 @@
    1.4  11 Dec 2005  Add hack to avoid MSDOS end-of-line conversions
                      Avoid some compiler warnings for input and output buffers
  */
+#pragma once
 
 #include <stdio.h>
 #include <string.h>
@@ -119,7 +120,9 @@ int inf(FILE *source, FILE *dest)
             assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
             switch (ret) {
             case Z_NEED_DICT:
-                ret = Z_DATA_ERROR;     /* and fall through */
+                ret = Z_DATA_ERROR;
+                (void)inflateEnd(&strm);
+                return ret;
             case Z_DATA_ERROR:
             case Z_MEM_ERROR:
                 (void)inflateEnd(&strm);
