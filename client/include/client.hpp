@@ -10,7 +10,7 @@
 #include "gzip.hpp"
 #include "utils.hpp"
 #include "proto.hpp"
-#include "downloadOrchestrator.hpp"
+#include "Downloader.hpp"
 
 
 class Client {
@@ -18,7 +18,6 @@ public:
     Client(int argc, char **argv) {
         std::cout << "Loading settings" << std::endl;
         load_settings(argc, argv);
-        removeDir("workspace");
         downloadOrchestrator.start();
         // start();
         // downloadChunks
@@ -151,7 +150,7 @@ private:
     using port_t = std::string;
 //    std::unordered_map<hostname_t, port_t> servers;
 
-    DownloadOrchestrator downloadOrchestrator;
+    Downloader downloadOrchestrator;
   
     std::string filepath;
     unsigned int chunks;

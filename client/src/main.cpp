@@ -1,5 +1,9 @@
 #include "client.hpp"
 
 int main(int argc, char **argv) {
-    Client client(argc, argv);
+    try {
+        Client client(argc, argv);
+    } catch (const std::exception& e) {
+        std::cout << "EXCEPTION: " << e.what() << std::endl;
+    }
 }

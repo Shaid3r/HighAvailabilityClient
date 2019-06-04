@@ -81,49 +81,66 @@ private:
         int clientSock;
         struct sockaddr clientAddr;
         socklen_t addrlen = sizeof(clientAddr);
-        if ((clientSock = accept(serverSock, (sockaddr *)&clientAddr, &addrlen)) < 0) {
-            perror("accept");
-            exit(EXIT_FAILURE);
-        }
-        
-        std::cout << "Client connected: " << ip_to_str(&clientAddr) << std::endl;
 
-        
-        Proto proto("dd.tar", dataSize);
-        int wv = write(clientSock, proto.raw_msg(), proto.size());
-        std::cout << "Send metadata: " << wv << " bytes" << std::endl;
-        
-        u_int64_t requestedChunk = -1;
-        read(clientSock, &requestedChunk, sizeof(requestedChunk));
-        std::cout << "Chunk " << requestedChunk << " requested" << std::endl;
-
-        lseek(datafd, CHUNK_SIZE * (requestedChunk - 1), SEEK_SET);
-
-        int BUF_SIZE = 8192;
-        char buf[BUF_SIZE];
-
-    
-        int read_bytes = 0;
-        while (read_bytes < CHUNK_SIZE) {
-            int rv = read(datafd, buf, BUF_SIZE);
-            if (rv < 0) {
-                perror("read data");
-                exit(-1);
-            } else if (rv == 0) {
-                break;
+        while (true) {
+            if ((clientSock = accept(serverSock, (sockaddr *) &clientAddr,
+                                     &addrlen)) < 0) {
+                perror("accept");
+                exit(EXIT_FAILURE);
             }
-            
-            read_bytes += rv;
 
-            int send_bytes = 0;
-            // while (send_bytes < )
-            int written_bytes = write(clientSock, buf, rv);
-            std::cout << "Send: " << written_bytes << " requested: " << rv << std::endl; 
-            std::cout << "Total: " << read_bytes << std::endl;
+            std::cout << "Client connected: " << ip_to_str(&clientAddr)
+                      << std::endl;
+
+            std::cout << "DEBUG: " << clientSock << std::endl;
+
+            Proto proto("dd.tar", dataSize);
+            int wv = write(clientSock, proto.raw_msg(), proto.size());
+            std::cout << "Send metadata: " << wv << " bytes" << std::endl;
+
+            u_int64_t requestedChunk = -1;
+            read(clientSock, &requestedChunk, sizeof(requestedChunk));
+            if (requestedChunk > chunks) {
+                std::cerr << "Invalid chunk requested. Dropping connection" << std::endl;
+                close(clientSock);
+                continue;
+            }
+            std::cout << "Chunk " << requestedChunk << " requested"
+                      << std::endl;
+
+            lseek(datafd, CHUNK_SIZE * (requestedChunk - 1), SEEK_SET);
+
+            int BUF_SIZE = 8192;
+            char buf[BUF_SIZE];
+
+
+            int read_bytes = 0;
+            while (read_bytes <= CHUNK_SIZE) {
+                int rv = read(datafd, buf, BUF_SIZE);
+                if (rv < 0) {
+                    perror("read data");
+                    exit(-1);
+                } else if (rv == 0) {
+                    break;
+                }
+
+                read_bytes += rv;
+
+                int send_bytes = 0;
+                // while (send_bytes < )
+                int written_bytes = write(clientSock, buf, rv);
+
+                if (written_bytes == -1) {
+                    perror("write");
+                    break;
+                }
+                std::cout << "Send: " << written_bytes << " Requested: " << rv
+                          << " Total: " << read_bytes << std::endl;
+            }
+
+            std::cout << "Client disconnected" << std::endl;
+            close(clientSock);
         }
-
-        
-        close(clientSock);
     }
 
     void prepare_data() {
