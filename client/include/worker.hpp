@@ -10,12 +10,13 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <bits/unique_ptr.h>
+#include <cassert>
 #include "utils.hpp"
 #include "proto.hpp"
-#include "ChunkScheduler.h"
-#include "MetaDataProvider.h"
-#include "ByteArray.h"
-#include "DiskWriter.h"
+#include "ChunkScheduler.hpp"
+#include "MetaDataProvider.hpp"
+#include "ByteArray.hpp"
+#include "DiskWriter.hpp"
 
 class Worker {
 public:
@@ -46,13 +47,9 @@ public:
             }
 
             serverIp = ip_to_str(rp->ai_addr);
-            std::cout << "Connecting to: " << serverIp;
-            if (connect(serverSock, rp->ai_addr, rp->ai_addrlen) != -1) {
-                std::cout << "\t\tconnected" << std::endl;
+            if (connect(serverSock, rp->ai_addr, rp->ai_addrlen) != -1)
                 break;  /* Success */
-            }
-            std::cout << std::endl;
-            perror("connect");
+
             if (close(serverSock) == -1) {
                 perror("close");
                 throw std::runtime_error(serverIp);
@@ -62,7 +59,7 @@ public:
         freeaddrinfo(serverInfo);
 
         if (rp == nullptr) {
-            throw std::runtime_error(std::string("Connection to server ") + serverIp + "failed");
+            throw std::runtime_error(std::string("Connection to server ") + serverIp + " failed");
         }
 
         if (fcntl(serverSock, F_SETFL, O_NONBLOCK) == -1) {
@@ -80,12 +77,15 @@ public:
             close(serverSock);
             throw std::runtime_error(serverIp);
         }
-        std::cout << "Server " << serverIp << " successfully registered"
-                  << std::endl;
+        std::cout << "Server " << serverIp << " successfully registered" << std::endl;
         buf = std::make_unique<ByteArray>();
     }
 
     ~Worker() {
+        disconnect();
+    }
+
+    void disconnect() {
         std::cout << "Disconnecting from " << serverIp << std::endl;
         if (serverSock != -1 && close(serverSock)) {
             std::string err = std::string("close(") + serverIp + ")";
@@ -104,6 +104,7 @@ public:
             case STATE::DOWNLOADING:
                 downloadChunk();
                 break;
+            case STATE::CLOSED:
             default:
                 break;
         }
@@ -116,8 +117,8 @@ public:
             throw std::runtime_error(serverIp);
         }
         sendBytes += rv;
-        std::cout << "Send bytes: " << rv << ", total: " << sendBytes
-                  << std::endl;
+//        std::cout << "Send bytes: " << rv << ", total: " << sendBytes
+//                  << std::endl;
         if (sendBytes == count) {
             sendBytes = 0;
             return true;
@@ -147,7 +148,7 @@ public:
         int result = readAll(Proto::MSG_SIZE);
         if (!result)
             return;
-        // TODO
+        // TODO setMetaData
         char *start = reinterpret_cast<char *>(buf->value);
         start[255] = '\0';
         metaDataProvider.filename = std::string(start, strnlen(start, Proto::MAX_FILENAME_SIZE));
@@ -155,7 +156,7 @@ public:
         start += Proto::MAX_FILENAME_SIZE;
         memcpy(&(metaDataProvider.filesize), start, sizeof(metaDataProvider.filesize));
 
-        std::cout << "readMetadata - filename: " << metaDataProvider.filename << " filesize: "
+        std::cout << "(" << serverIp << ") readMetadata - filename: " << metaDataProvider.filename << " filesize: "
                   << metaDataProvider.filesize << " bytes" << std::endl;
 
         state = STATE::CHUNK_REQUEST;
@@ -164,29 +165,30 @@ public:
 
     void requestChunk(bool newChunk = false) {
         if (newChunk) {
-            chunkToDownload = chunkScheduler.getChunkToDownload();
+            try {
+                chunkToDownload = chunkScheduler.getChunkToDownload();
+            } catch (const ChunkScheduler::NoMoreChunks& e) {
+                std::cout << "No more chunks to download, closing worker..." << std::endl;
+                state = STATE::CLOSED;
+                throw e;
+            }
             writerFd = diskWriter.createFileFd(serverSock, chunkToDownload);
         }
+        std::cout << "(" << serverIp << ")" << " requesting " << chunkToDownload << " chunk" << std::endl;
         int result = writeAll(&chunkToDownload, sizeof(chunkToDownload));
         if (!result)
             return;
 
         std::cout << "Requested chunk " << chunkToDownload << " from " << serverIp << std::endl;
         state = STATE::DOWNLOADING;
-        // downloadChunk ???
     }
 
     void downloadChunk() {
-        if (!readAll(BUF_SIZE))
+        if (!readAll(metaDataProvider.getSizeOfChunk(chunkToDownload)))
             return;
-        static int reads = 0;
-        std::cout << "Reads: " << reads << std::endl;
-        if (diskWriter.writeBuf(writerFd, std::move(buf))) {
-            requestChunk();
-            std::cout << "REQUEST CHUNK" << std::endl;
-        }
+        if (diskWriter.writeBuf(writerFd, std::move(buf)))
+            requestChunk(true);
         buf = std::make_unique<ByteArray>();
-        ++reads;
     }
 
     int getServerSock() const {
@@ -195,7 +197,7 @@ public:
 
 private:
     enum STATE {
-        INIT, CHUNK_REQUEST, DOWNLOADING
+        INIT, CHUNK_REQUEST, DOWNLOADING, CLOSED
     };
     ChunkScheduler &chunkScheduler;
     MetaDataProvider &metaDataProvider;

@@ -43,7 +43,7 @@ public:
         parse();
     }
 
-    Proto(const std::string& filename, uint64_t filesize) 
+    Proto(const std::string& filename, off_t filesize)
       : filename(filename), filesize(filesize) {
         if (filename.size() >= MAX_FILENAME_SIZE) {
             std::string err("Filename is too long. Max: ");
