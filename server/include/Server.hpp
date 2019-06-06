@@ -136,7 +136,7 @@ private:
                     perror("read");
                     throw std::runtime_error("Cannot read requested chunk");
                 } else if (rv == 0) {
-                    std::cerr << "End of file" << std::endl;
+                    break;
                 }
 
                 readBytes += rv;
