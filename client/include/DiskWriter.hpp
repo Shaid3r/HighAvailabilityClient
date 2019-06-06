@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <iostream>
+#include <utils.hpp>
 #include "ByteArray.hpp"
 #include "MetaDataProvider.hpp"
 #include "ChunkScheduler.hpp"
@@ -35,38 +36,25 @@ public:
         fdMap[sockfd] = FdInfo{};
         fdMap[sockfd].chunkFn = chunkFn;
         fdMap[sockfd].chunkNo = chunkNo;
-        fdMap[sockfd].chunkSize = metaDataProvider.getSizeOfChunk(chunkNo);
 
         return sockfd;
     }
 
-    bool writeBuf(int sockFd, std::unique_ptr<ByteArray> arr) {
-        size_t bytesToSave = getBytesToSave(sockFd);
-
-        size_t saved{0};
-        while(saved < bytesToSave) {
-            ssize_t rv = write(sockFd, arr->value + saved, bytesToSave - saved);
-            if (rv == -1) {
-                perror("write");
-                throw std::runtime_error(fdMap[sockFd].chunkFn);
-            } else if (rv == 0) {
-                std::cout << "No data" << std::endl;
-            }
-
-            saved += rv;
+    void saveChunk(int sockFd) {
+        std::cout << "Chunk " << fdMap[sockFd].chunkNo << " ("<< fdMap[sockFd].chunkFn << ") saved" << std::endl;
+        if (close(sockFd)) {
+            perror("close");
+            throw std::runtime_error(fdMap[sockFd].chunkFn);
         }
-        fdMap[sockFd].writtenBytes += saved;
-//        std::cout << fdMap[sockFd].chunkFn << " written bytes: " << fdMap[sockFd].writtenBytes << " chunkSize: " << fdMap[sockFd].chunkSize << std::endl;
-        if (fdMap[sockFd].writtenBytes == fdMap[sockFd].chunkSize) {
-            std::cout << "Chunk " << fdMap[sockFd].chunkNo << " ("<< fdMap[sockFd].chunkFn << ") saved" << std::endl;
-            if (close(sockFd) == -1) {
-                perror("close");
-                throw std::runtime_error(fdMap[sockFd].chunkFn);
-            }
-            chunkScheduler.markChunkAsDone(fdMap[sockFd].chunkNo, fdMap[sockFd].chunkFn);
-            return true;
+        chunkScheduler.markChunkAsDone(fdMap[sockFd].chunkNo, fdMap[sockFd].chunkFn);
+    }
+
+    void writeBuf(int sockFd, u_int8_t *arr, size_t bytesToSave) {
+        try {
+            writeAll(sockFd, arr, bytesToSave);
+        } catch (const std::exception&) {
+            std::cerr << "Cannot write " << fdMap[sockFd].chunkFn << " to disk" << std::endl;
         }
-        return false;
     }
 
 private:
@@ -75,23 +63,11 @@ private:
                std::to_string(workerFd);
     }
 
-    bool isLastBufOfChunk(int sockFd) const {
-        return fdMap.at(sockFd).chunkSize - fdMap.at(sockFd).writtenBytes <= BUF_SIZE;
-    }
-
-    size_t getBytesToSave(int sockFd) const {
-        if (fdMap.at(sockFd).chunkSize % BUF_SIZE && isLastBufOfChunk(sockFd))
-            return fdMap.at(sockFd).chunkSize % BUF_SIZE;
-        return BUF_SIZE;
-    }
-
     using fd = int;
 
     struct FdInfo {
         std::string chunkFn;
         u_int64_t chunkNo{};
-        u_int64_t chunkSize{0};
-        u_int64_t writtenBytes{0};
     };
 
     const MetaDataProvider& metaDataProvider;

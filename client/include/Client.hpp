@@ -38,22 +38,22 @@ private:
             throw std::exception();
         }
 
-        for (const auto& chunk : savedChunks) {
-            int chunkFd = open(chunk.second.c_str(), O_RDONLY);
+        for (uint64_t chunkNo = 0; chunkNo < savedChunks.size(); ++chunkNo) {
+            int chunkFd = open(savedChunks.at(chunkNo).c_str(), O_RDONLY);
             if (chunkFd == -1) {
                 perror("open");
                 throw std::exception();
             }
 
             char buf[BUF_SIZE];
-            off_t chunkSize = getFileSize(chunk.second);
+            off_t chunkSize = getFileSize(savedChunks.at(chunkNo));
 
             off_t writtenBytes = 0;
             while (writtenBytes < chunkSize) {
                 ssize_t readBytes = read(chunkFd, buf, BUF_SIZE);
                 if (readBytes < 0) {
                     perror("open");
-                    throw std::runtime_error("Cannot read: " + chunk.second);
+                    throw std::runtime_error("Cannot read: " + savedChunks.at(chunkNo));
                 }
 
                 writeAll(mergedFd, buf, static_cast<size_t>(readBytes));
@@ -61,7 +61,7 @@ private:
             }
             if (close(chunkFd)) {
                 perror("close");
-                throw std::runtime_error("Cannot close: " + chunk.second);
+                throw std::runtime_error("Cannot close: " + savedChunks.at(chunkNo));
             }
         }
 

@@ -78,7 +78,6 @@ public:
             throw std::runtime_error(serverIp);
         }
         std::cout << "Server " << serverIp << " successfully registered" << std::endl;
-        buf = std::make_unique<ByteArray>();
     }
 
     ~Worker() {
@@ -128,15 +127,13 @@ public:
 
     bool readAll(size_t count) {
         assert(count <= BUF_SIZE);
-        ssize_t rv = read(serverSock, buf->value + receivedBytes,
-                          count - receivedBytes);
+        ssize_t rv = read(serverSock, buf, count - receivedBytes);
         if (rv == -1) {
             perror("read");
             throw std::runtime_error(serverIp);
         }
         receivedBytes += rv;
-        std::cout << "Received bytes: " << rv << ", total: " << receivedBytes
-                  << std::endl;
+//        std::cout << "Received bytes: " << rv << ", total: " << receivedBytes << std::endl;
         if (receivedBytes == count) {
             receivedBytes = 0;
             return true;
@@ -149,7 +146,7 @@ public:
         if (!result)
             return;
         // TODO setMetaData
-        char *start = reinterpret_cast<char *>(buf->value);
+        char *start = reinterpret_cast<char *>(buf);
         start[255] = '\0';
         metaDataProvider.filename = std::string(start, strnlen(start, Proto::MAX_FILENAME_SIZE));
         std::string filename(start, strnlen(start, Proto::MAX_FILENAME_SIZE));
@@ -167,6 +164,7 @@ public:
         if (newChunk) {
             try {
                 chunkToDownload = chunkScheduler.getChunkToDownload();
+                chunkSize = metaDataProvider.getSizeOfChunk(chunkToDownload);
             } catch (const ChunkScheduler::NoMoreChunks& e) {
                 std::cout << "No more chunks to download, closing worker..." << std::endl;
                 state = STATE::CLOSED;
@@ -184,11 +182,24 @@ public:
     }
 
     void downloadChunk() {
-        if (!readAll(metaDataProvider.getSizeOfChunk(chunkToDownload)))
-            return;
-        if (diskWriter.writeBuf(writerFd, std::move(buf)))
+        u_int64_t bytesToRead{BUF_SIZE};
+        if (chunkSize - receivedBytes < BUF_SIZE)
+            bytesToRead = chunkSize - receivedBytes;
+
+        ssize_t rv = read(serverSock, buf, bytesToRead);
+        if (rv == -1) {
+            perror("read");
+            throw std::runtime_error(serverIp);
+        }
+        receivedBytes += rv;
+        diskWriter.writeBuf(writerFd, buf, static_cast<size_t>(rv));
+
+        if (receivedBytes == chunkSize) {
+            diskWriter.saveChunk(writerFd);
+            receivedBytes = 0;
+            state = STATE::CHUNK_REQUEST;
             requestChunk(true);
-        buf = std::make_unique<ByteArray>();
+        }
     }
 
     int getServerSock() const {
@@ -203,7 +214,7 @@ private:
     MetaDataProvider &metaDataProvider;
     DiskWriter& diskWriter;
 
-    std::unique_ptr<ByteArray> buf;
+    u_int8_t buf[BUF_SIZE];
     size_t receivedBytes{0};
     size_t sendBytes{0};
 
@@ -212,4 +223,5 @@ private:
     u_int64_t chunkToDownload{static_cast<u_int64_t>(-1)};
     int serverSock{-1};
     int writerFd;
+    u_int64_t chunkSize;
 };
