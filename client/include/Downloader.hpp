@@ -1,18 +1,18 @@
 #pragma once
 
 #include <iostream>
-#include <sys/epoll.h>
 #include <memory>
 #include <unordered_map>
-#include "worker.hpp"
+#include <sys/epoll.h>
 #include "DiskWriter.hpp"
+#include "Worker.hpp"
 
 
 class Downloader {
 public:
     Downloader() {
-        epfd = epoll_create1(0);
-        if (epfd == -1) {
+        epFd = epoll_create1(0);
+        if (epFd == -1) {
             perror("epoll_create1");
             exit(EXIT_FAILURE);
         }
@@ -23,16 +23,12 @@ public:
     }
 
     ~Downloader() {
-        std::cout << "Closing connection poll" << std::endl;
-        if(close(epfd)) {
-            perror("close(epfd)");
-            exit(EXIT_FAILURE);
-        }
+        tryClose(epFd, "Failed to close epFd");
     }
 
     void addServer(const std::string& hostname, const std::string& port) {
         try {
-            std::unique_ptr<Worker> worker = std::make_unique<Worker>(epfd, hostname, port,
+            std::unique_ptr<Worker> worker = std::make_unique<Worker>(epFd, hostname, port,
                     *chunkScheduler, *metaDataProvider, *diskWriter);
             workers[worker->getServerSock()] = std::move(worker);
         } catch (const std::exception& e) {
@@ -48,7 +44,7 @@ public:
         try {
             epoll_event events[MAX_EVENTS];
             while(!workers.empty()) {
-                int readyCount = epoll_wait(epfd, events, MAX_EVENTS, TIMEOUT);
+                int readyCount = epoll_wait(epFd, events, MAX_EVENTS, TIMEOUT);
                 if (readyCount == -1) {
                     perror("epoll_wait");
                     throw std::exception();
@@ -72,7 +68,7 @@ public:
     }
 
     std::string getFilename() const {
-        return metaDataProvider->filename;
+        return metaDataProvider->getFilename();
     }
 private:
     const int MAX_EVENTS{10};
@@ -83,5 +79,5 @@ private:
     std::unique_ptr<DiskWriter> diskWriter;
 
     std::unordered_map<int, std::unique_ptr<Worker>> workers;
-    int epfd;
+    int epFd;
 };

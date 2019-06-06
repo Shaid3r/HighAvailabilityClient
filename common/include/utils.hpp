@@ -14,16 +14,16 @@ bool doesFileExists(const std::string &filepath) {
     return (stat(filepath.c_str(), &buffer) == 0);
 }
 
-off_t getFileSize(const std::string &filepath) {
+u_int64_t getFileSize(const std::string &filepath) {
     struct stat buffer{};
     if (stat(filepath.c_str(), &buffer) != 0) {
         perror("stat: ");
         exit(EXIT_FAILURE);
     }
-    return buffer.st_size;
+    return static_cast<u_int64_t>(buffer.st_size);
 }
 
-off_t getNumberOfChunks(off_t dataSize, int chunkSize) {
+u_int64_t getNumberOfChunks(u_int64_t dataSize, u_int64_t chunkSize) {
     if (dataSize % chunkSize == 0) {
         return dataSize / chunkSize;
     } else {
@@ -31,20 +31,26 @@ off_t getNumberOfChunks(off_t dataSize, int chunkSize) {
     }
 }
 
-std::string ip_to_str(const struct sockaddr *sa) {
+u_int64_t getSizeOfChunk(u_int64_t fileSize, u_int64_t chunkNo, u_int64_t chunkSize) {
+    if (chunkNo < getNumberOfChunks(fileSize, chunkSize) - 1)
+        return chunkSize;
+    return fileSize % chunkSize;
+}
+
+std::string ipToStr(const struct sockaddr *sa) {
     std::ostringstream ss;
     uint32_t port;
     char ip[INET6_ADDRSTRLEN];
     switch (sa->sa_family) {
         case AF_INET:
-            inet_ntop(AF_INET, &(((struct sockaddr_in *) sa)->sin_addr), ip,
+            inet_ntop(AF_INET, &(((sockaddr_in *) sa)->sin_addr), ip,
                       sizeof(ip));
-            port = htons(((struct sockaddr_in *) sa)->sin_port);
+            port = htons(((sockaddr_in *) sa)->sin_port);
             break;
         case AF_INET6:
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) sa)->sin6_addr), ip,
+            inet_ntop(AF_INET6, &(((sockaddr_in6 *) sa)->sin6_addr), ip,
                       sizeof(ip));
-            port = htons(((struct sockaddr_in6 *) sa)->sin6_port);
+            port = htons(((sockaddr_in6 *) sa)->sin6_port);
             break;
         default:
             return "Invalid ip";
@@ -53,9 +59,8 @@ std::string ip_to_str(const struct sockaddr *sa) {
     return ss.str();
 }
 
-int unlink_cb(const char *fpath, const struct stat *, int, struct FTW *) {
+int unlinkCb(const char *fpath, const struct stat *, int, struct FTW *) {
     int rv = remove(fpath);
-
     if (rv)
         perror(fpath);
 
@@ -63,10 +68,10 @@ int unlink_cb(const char *fpath, const struct stat *, int, struct FTW *) {
 }
 
 int removeRecursively(const char *path) {
-    return nftw(path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
+    return nftw(path, unlinkCb, 64, FTW_DEPTH | FTW_PHYS);
 }
 
-void writeAll(int sockFd, void *msg, size_t count) {
+void tryWriteAll(int sockFd, void *msg, size_t count) {
     size_t written_bytes{0};
 
     while (written_bytes < count) {
@@ -77,5 +82,12 @@ void writeAll(int sockFd, void *msg, size_t count) {
             throw std::exception();
         }
         written_bytes += rv;
+    }
+}
+
+void tryClose(int sockfd, const std::string& msg) {
+    if (close(sockfd)) {
+        perror("close");
+        throw std::runtime_error(msg);
     }
 }

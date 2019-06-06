@@ -8,7 +8,6 @@
 #include <sys/epoll.h>
 #include <iostream>
 #include <utils.hpp>
-#include "ByteArray.hpp"
 #include "MetaDataProvider.hpp"
 #include "ChunkScheduler.hpp"
 
@@ -40,18 +39,15 @@ public:
         return sockfd;
     }
 
-    void saveChunk(int sockFd) {
+    void closeChunk(int sockFd) {
         std::cout << "Chunk " << fdMap[sockFd].chunkNo << " ("<< fdMap[sockFd].chunkFn << ") saved" << std::endl;
-        if (close(sockFd)) {
-            perror("close");
-            throw std::runtime_error(fdMap[sockFd].chunkFn);
-        }
+        tryClose(sockFd, "Failed to close" + fdMap[sockFd].chunkFn);
         chunkScheduler.markChunkAsDone(fdMap[sockFd].chunkNo, fdMap[sockFd].chunkFn);
     }
 
     void writeBuf(int sockFd, u_int8_t *arr, size_t bytesToSave) {
         try {
-            writeAll(sockFd, arr, bytesToSave);
+            tryWriteAll(sockFd, arr, bytesToSave);
         } catch (const std::exception&) {
             std::cerr << "Cannot write " << fdMap[sockFd].chunkFn << " to disk" << std::endl;
         }

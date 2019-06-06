@@ -1,10 +1,11 @@
 #pragma once
 
 #include <string>
+#include "MsgMetadata.hpp"
 
 struct MetaDataProvider {
     void setMetaData(const std::string& filename, u_int64_t filesize) {
-        if (filename.empty()) {
+        if (this->filename.empty()) {
             this->filename = filename;
             this->filesize = filesize;
         }
@@ -24,7 +25,15 @@ struct MetaDataProvider {
         }
     }
 
+    std::string getFilename() const {
+        return filename;
+    }
+
+    u_int64_t getFilesize() const {
+        return filesize;
+    }
+
+private:
     std::string filename;
     u_int64_t filesize{};
-private:
 };

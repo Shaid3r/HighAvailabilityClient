@@ -15,19 +15,15 @@ public:
             const auto& savedChunks = downloader.downloadChunks();
             mergeChunks(savedChunks);
             std::cout << "Chunks merged to " << MERGED_FILENAME << ". Decompressing..." << std::endl;
-            Gzip::decompress(MERGED_FILENAME, "rr");
+            Gzip::decompress(MERGED_FILENAME, downloader.getFilename());
             std::cout << "Done. Cleaning..." << std::endl;
             removeRecursively("workspace");
-//            removeRecursively(MERGED_FILENAME);
+            removeRecursively(MERGED_FILENAME);
             std::cout << "============================================" << std::endl;
             std::cout << "File download completed!!!" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << e.what() << std::endl;
         }
-    }
-
-    ~Client() {
-        std::cout << "Deleting client" << std::endl;
     }
 
 private:
@@ -56,7 +52,7 @@ private:
                     throw std::runtime_error("Cannot read: " + savedChunks.at(chunkNo));
                 }
 
-                writeAll(mergedFd, buf, static_cast<size_t>(readBytes));
+                tryWriteAll(mergedFd, buf, static_cast<size_t>(readBytes));
                 writtenBytes += readBytes;
             }
             if (close(chunkFd)) {
@@ -94,7 +90,8 @@ private:
             << "Example: " << name << " localhost:8080" << std::endl;
     }
 
-    const char *MERGED_FILENAME = "mergedFile";
+    static const u_int64_t BUF_SIZE{8192};
+    static constexpr const char *MERGED_FILENAME = "mergedFile";
 
     using hostname_t = std::string;
     using port_t = std::string;
